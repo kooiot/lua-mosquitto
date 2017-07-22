@@ -736,8 +736,10 @@ static int ctx_unsubscribe(lua_State *L)
 static int mosq_loop(lua_State *L, bool forever)
 {
 	ctx_t *ctx = ctx_check(L, 1);
+	assert(ctx->L == L);
 	int timeout = luaL_optinteger(L, 2, -1);
 	int max_packets = luaL_optinteger(L, 3, 1);
+
 	int rc;
 	if (forever) {
 		rc = mosquitto_loop_forever(ctx->mosq, timeout, max_packets);
@@ -914,7 +916,7 @@ static int ctx_want_write(lua_State *L)
 	return 1;
 }
 
-static int traceback (lua_State *L) {
+static int traceback_1 (lua_State *L) {
 	if (!lua_isstring(L, 1))  /* 'message' not a string? */
 		return 1;  /* keep it intact */
 	lua_pushglobaltable(L);
@@ -932,6 +934,15 @@ static int traceback (lua_State *L) {
 	lua_pushvalue(L, 1);  /* pass error message */
 	lua_pushinteger(L, 2);  /* skip this function and traceback */
 	lua_call(L, 2, 1);  /* call debug.traceback */
+	return 1;
+}
+
+static int traceback(lua_State *L) {
+	const char *msg = lua_tostring(L, 1);
+	if (msg)
+		luaL_traceback(L, L, msg, 1);
+	else
+		lua_pushliteral(L, "(no error message)");
 	return 1;
 }
 
@@ -982,7 +993,6 @@ static void ctx_on_connect(
 	lua_pushinteger(ctx->L, rc);
 	lua_pushstring(ctx->L, str);
 
-	//lua_call(ctx->L, 3, 0);
 	if (lua_pcall(ctx->L, 3, 0, -5)) {
 		fprintf(stderr, "ON_CONNECT Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
@@ -1011,7 +1021,6 @@ static void ctx_on_disconnect(
 	lua_pushinteger(ctx->L, rc);
 	lua_pushstring(ctx->L, str);
 
-	//lua_call(ctx->L, 3, 0);
 	if (lua_pcall(ctx->L, 3, 0, -5)) {
 		fprintf(stderr, "ON_DISCONNECT Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
@@ -1027,8 +1036,8 @@ static void ctx_on_publish(
 
 	lua_pushcfunction(ctx->L, traceback);
 	lua_rawgeti(ctx->L, LUA_REGISTRYINDEX, ctx->on_publish);
+
 	lua_pushinteger(ctx->L, mid);
-	//lua_call(ctx->L, 1, 0);
 	if (lua_pcall(ctx->L, 1, 0, -3)) {
 		fprintf(stderr, "ON_PUBLISH Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
@@ -1045,6 +1054,7 @@ static void ctx_on_message(
 	lua_pushcfunction(ctx->L, traceback);
 	/* push registered Lua callback function onto the stack */
 	lua_rawgeti(ctx->L, LUA_REGISTRYINDEX, ctx->on_message);
+
 	/* push function args */
 	lua_pushinteger(ctx->L, msg->mid);
 	lua_pushstring(ctx->L, msg->topic);
@@ -1052,7 +1062,6 @@ static void ctx_on_message(
 	lua_pushinteger(ctx->L, msg->qos);
 	lua_pushboolean(ctx->L, msg->retain);
 
-	//lua_call(ctx->L, 5, 0); /* args: mid, topic, payload, qos, retain */
 	if (lua_pcall(ctx->L, 5, 0, -7)) {
 		fprintf(stderr, "ON_MESSAGE Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
@@ -1071,14 +1080,14 @@ static void ctx_on_subscribe(
 
 	lua_pushcfunction(ctx->L, traceback);
 	lua_rawgeti(ctx->L, LUA_REGISTRYINDEX, ctx->on_subscribe);
+
 	lua_pushinteger(ctx->L, mid);
 
 	for (i = 0; i < qos_count; i++) {
 		lua_pushinteger(ctx->L, granted_qos[i]);
 	}
 
-	//lua_call(ctx->L, qos_count + 1, 0);
-	if (lua_pcall(ctx->L, qos_count, 0, -2 - (qos_count + 1))) {
+	if (lua_pcall(ctx->L, qos_count + 1, 0, -2 - (qos_count + 1))) {
 		fprintf(stderr, "ON_SUBSCRIBE Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
 	lua_pop(ctx->L, 1);
@@ -1093,8 +1102,8 @@ static void ctx_on_unsubscribe(
 
 	lua_pushcfunction(ctx->L, traceback);
 	lua_rawgeti(ctx->L, LUA_REGISTRYINDEX, ctx->on_unsubscribe);
+
 	lua_pushinteger(ctx->L, mid);
-	//lua_call(ctx->L, 1, 0);
 	if (lua_pcall(ctx->L, 1, 0, -3)) {
 		fprintf(stderr, "ON_UNSUBSCRIBE Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
@@ -1115,7 +1124,6 @@ static void ctx_on_log(
 	lua_pushinteger(ctx->L, level);
 	lua_pushstring(ctx->L, str);
 
-	//lua_call(ctx->L, 2, 0);
 	if (lua_pcall(ctx->L, 2, 0, -4)) {
 		fprintf(stderr, "ON_LOG Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
