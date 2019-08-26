@@ -95,6 +95,7 @@ static int mosq__pstatus(lua_State *L, int mosq_errno) {
 		case MOSQ_ERR_INVAL:
 		case MOSQ_ERR_NOMEM:
 		case MOSQ_ERR_PROTOCOL:
+		case MOSQ_ERR_TLS:
 		case MOSQ_ERR_NOT_SUPPORTED:
 			return luaL_error(L, mosquitto_strerror(mosq_errno));
 			break;
@@ -116,7 +117,9 @@ static int mosq__pstatus(lua_State *L, int mosq_errno) {
 			break;
 	}
 
-	return 0;
+	lua_pushnil(L);
+	lua_pushinteger(L, mosq_errno);
+	return 2;
 }
 
 /***
