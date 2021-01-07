@@ -959,8 +959,8 @@ static int traceback(lua_State *L) {
 }
 
 static int _K(lua_State* L, int status, lua_KContext ctx) {
-	if (status) {
-		fprintf(stderr, "%s Uncaught Error: %s\n", (const char*)ctx, lua_tostring(L, -1));
+	if (status && status != LUA_YIELD) {
+		fprintf(stderr, "%s Uncaught Error: %d %s\n", (const char*)ctx, status, lua_tostring(L, -1));
 	}
 	lua_pop(L, 1);
 	return 0;
