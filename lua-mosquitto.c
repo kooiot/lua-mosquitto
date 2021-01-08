@@ -1073,6 +1073,7 @@ static void ctx_on_message(
 	const struct mosquitto_message *msg)
 {
 	ctx_t *ctx = obj;
+	int status = 0;
 
 	lua_pushcfunction(ctx->L, traceback);
 	/* push registered Lua callback function onto the stack */
@@ -1085,9 +1086,10 @@ static void ctx_on_message(
 	lua_pushinteger(ctx->L, msg->qos);
 	lua_pushboolean(ctx->L, msg->retain);
 
-	_K(ctx->L, lua_pcallk(ctx->L, 5, 0, -7, (lua_KContext)__func__, _K), (lua_KContext)__func__);
-	if (lua_pcall(ctx->L, 5, 0, -7)) {
-		fprintf(stderr, "ON_MESSAGE Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
+	//_K(ctx->L, lua_pcallk(ctx->L, 5, 0, -7, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+	status = lua_pcall(ctx->L, 5, 0, -7);
+	if (status) {
+		fprintf(stderr, "ON_MESSAGE Uncaught Error: [%d] %s\n", status, lua_tostring(ctx->L, -1));
 	}
 	lua_pop(ctx->L, 1);
 }
@@ -1111,7 +1113,7 @@ static void ctx_on_subscribe(
 		lua_pushinteger(ctx->L, granted_qos[i]);
 	}
 
-	_K(ctx->L, lua_pcallk(ctx->L, qos_count + 1, 0, -2 - (qos_count + 1), (lua_KContext)__func__, _K), (lua_KContext)__func__);
+	//_K(ctx->L, lua_pcallk(ctx->L, qos_count + 1, 0, -2 - (qos_count + 1), (lua_KContext)__func__, _K), (lua_KContext)__func__);
 	if (lua_pcall(ctx->L, qos_count + 1, 0, -2 - (qos_count + 1))) {
 		fprintf(stderr, "ON_SUBSCRIBE Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
@@ -1128,7 +1130,7 @@ static void ctx_on_unsubscribe(
 	lua_pushcfunction(ctx->L, traceback);
 	lua_rawgeti(ctx->L, LUA_REGISTRYINDEX, ctx->on_unsubscribe);
 
-	_K(ctx->L, lua_pcallk(ctx->L, 1, 0, -3, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+	//_K(ctx->L, lua_pcallk(ctx->L, 1, 0, -3, (lua_KContext)__func__, _K), (lua_KContext)__func__);
 	lua_pushinteger(ctx->L, mid);
 	if (lua_pcall(ctx->L, 1, 0, -3)) {
 		fprintf(stderr, "ON_UNSUBSCRIBE Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
