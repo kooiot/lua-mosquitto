@@ -928,7 +928,8 @@ static int ctx_want_write(lua_State *L)
 	return 1;
 }
 
-static int traceback_1 (lua_State *L) {
+#ifdef USE_TRACEBACK_1
+static int traceback (lua_State *L) {
 	if (!lua_isstring(L, 1))  /* 'message' not a string? */
 		return 1;  /* keep it intact */
 	lua_pushglobaltable(L);
@@ -948,7 +949,7 @@ static int traceback_1 (lua_State *L) {
 	lua_call(L, 2, 1);  /* call debug.traceback */
 	return 1;
 }
-
+#else
 static int traceback(lua_State *L) {
 	const char *msg = lua_tostring(L, 1);
 	if (msg)
@@ -957,7 +958,9 @@ static int traceback(lua_State *L) {
 		lua_pushliteral(L, "(no error message)");
 	return 1;
 }
+#endif
 
+#ifdef USE_LUA_PCALLK
 static int _K(lua_State* L, int status, lua_KContext ctx) {
 	if (status && status != LUA_YIELD) {
 		fprintf(stderr, "%s Uncaught Error: %d %s\n", (const char*)ctx, status, lua_tostring(L, -1));
@@ -965,6 +968,7 @@ static int _K(lua_State* L, int status, lua_KContext ctx) {
 	lua_pop(L, 1);
 	return 0;
 }
+#endif
 
 static void ctx_on_connect(
 	struct mosquitto *mosq,
@@ -1013,11 +1017,14 @@ static void ctx_on_connect(
 	lua_pushinteger(ctx->L, rc);
 	lua_pushstring(ctx->L, str);
 
-	//_K(ctx->L, lua_pcallk(ctx->L, 3, 0, -5, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#ifdef USE_LUA_PCALLK
+	_K(ctx->L, lua_pcallk(ctx->L, 3, 0, -5, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#else
 	if (lua_pcall(ctx->L, 3, 0, -5)) {
 		fprintf(stderr, "ON_CONNECT Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
 	lua_pop(ctx->L, 1);
+#endif
 }
 
 
@@ -1042,11 +1049,14 @@ static void ctx_on_disconnect(
 	lua_pushinteger(ctx->L, rc);
 	lua_pushstring(ctx->L, str);
 
-	//_K(ctx->L, lua_pcallk(ctx->L, 3, 0, -5, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#ifdef USE_LUA_PCALLK
+	_K(ctx->L, lua_pcallk(ctx->L, 3, 0, -5, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#else
 	if (lua_pcall(ctx->L, 3, 0, -5)) {
 		fprintf(stderr, "ON_DISCONNECT Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
 	lua_pop(ctx->L, 1);
+#endif
 }
 
 static void ctx_on_publish(
@@ -1060,11 +1070,14 @@ static void ctx_on_publish(
 	lua_rawgeti(ctx->L, LUA_REGISTRYINDEX, ctx->on_publish);
 
 	lua_pushinteger(ctx->L, mid);
-	//_K(ctx->L, lua_pcallk(ctx->L, 1, 0, -3, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#ifdef USE_LUA_PCALLK
+	_K(ctx->L, lua_pcallk(ctx->L, 1, 0, -3, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#else
 	if (lua_pcall(ctx->L, 1, 0, -3)) {
 		fprintf(stderr, "ON_PUBLISH Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
 	lua_pop(ctx->L, 1);
+#endif
 }
 
 static void ctx_on_message(
@@ -1086,12 +1099,15 @@ static void ctx_on_message(
 	lua_pushinteger(ctx->L, msg->qos);
 	lua_pushboolean(ctx->L, msg->retain);
 
-	//_K(ctx->L, lua_pcallk(ctx->L, 5, 0, -7, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#ifdef USE_LUA_PCALLK
+	_K(ctx->L, lua_pcallk(ctx->L, 5, 0, -7, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#else
 	status = lua_pcall(ctx->L, 5, 0, -7);
 	if (status) {
 		fprintf(stderr, "ON_MESSAGE Uncaught Error: [%d] %s\n", status, lua_tostring(ctx->L, -1));
 	}
 	lua_pop(ctx->L, 1);
+#endif
 }
 
 static void ctx_on_subscribe(
@@ -1113,11 +1129,14 @@ static void ctx_on_subscribe(
 		lua_pushinteger(ctx->L, granted_qos[i]);
 	}
 
-	//_K(ctx->L, lua_pcallk(ctx->L, qos_count + 1, 0, -2 - (qos_count + 1), (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#ifdef USE_LUA_PCALLK
+	_K(ctx->L, lua_pcallk(ctx->L, qos_count + 1, 0, -2 - (qos_count + 1), (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#else
 	if (lua_pcall(ctx->L, qos_count + 1, 0, -2 - (qos_count + 1))) {
 		fprintf(stderr, "ON_SUBSCRIBE Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
 	lua_pop(ctx->L, 1);
+#endif
 }
 
 static void ctx_on_unsubscribe(
@@ -1130,12 +1149,15 @@ static void ctx_on_unsubscribe(
 	lua_pushcfunction(ctx->L, traceback);
 	lua_rawgeti(ctx->L, LUA_REGISTRYINDEX, ctx->on_unsubscribe);
 
-	//_K(ctx->L, lua_pcallk(ctx->L, 1, 0, -3, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#ifdef USE_LUA_PCALLK
+	_K(ctx->L, lua_pcallk(ctx->L, 1, 0, -3, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#else
 	lua_pushinteger(ctx->L, mid);
 	if (lua_pcall(ctx->L, 1, 0, -3)) {
 		fprintf(stderr, "ON_UNSUBSCRIBE Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
 	lua_pop(ctx->L, 1);
+#endif
 }
 
 static void ctx_on_log(
@@ -1152,11 +1174,14 @@ static void ctx_on_log(
 	lua_pushinteger(ctx->L, level);
 	lua_pushstring(ctx->L, str);
 
-	//_K(ctx->L, lua_pcallk(ctx->L, 2, 0, -4, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#ifdef USE_LUA_PCALLK
+	_K(ctx->L, lua_pcallk(ctx->L, 2, 0, -4, (lua_KContext)__func__, _K), (lua_KContext)__func__);
+#else
 	if (lua_pcall(ctx->L, 2, 0, -4)) {
 		fprintf(stderr, "ON_LOG Uncaught Error: %s\n", lua_tostring(ctx->L, -1));
 	}
 	lua_pop(ctx->L, 1);
+#endif
 }
 
 static int callback_type_from_string(const char *);
